@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sistema SUAP — Gerador de Relatório de Execução Orçamentária</title>
+<title>SEO — Sistema de Execução Orçamentária</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230d2137'/%3E%3Crect x='5' y='20' width='4' height='7' rx='1' fill='%232589e6'/%3E%3Crect x='11' y='14' width='4' height='13' rx='1' fill='%231a6fc4'/%3E%3Crect x='17' y='9' width='4' height='18' rx='1' fill='%23c8a227'/%3E%3Crect x='23' y='5' width='4' height='22' rx='1' fill='%231a8a5a'/%3E%3Cpath d='M7 18 L13 12 L19 7 L25 4' stroke='%23ffffff' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round' opacity='.6'/%3E%3C/svg%3E">
 <style>
   :root {
     --navy:    #0d2137;
@@ -421,7 +422,17 @@
 
 <header>
   <div class="header-inner">
-    <div class="header-logo">📊</div>
+    <div class="header-logo">
+      <!-- Logo institucional SEO — barras de execução orçamentária + linha de tendência -->
+      <svg viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg" width="36" height="36">
+        <rect x="4"  y="28" width="6" height="12" rx="1.5" fill="#2589e6"/>
+        <rect x="12" y="20" width="6" height="20" rx="1.5" fill="#1a6fc4"/>
+        <rect x="20" y="13" width="6" height="27" rx="1.5" fill="#c8a227"/>
+        <rect x="28" y="7"  width="6" height="33" rx="1.5" fill="#1a8a5a"/>
+        <path d="M7 26 L15 18 L23 11 L31 5" stroke="rgba(255,255,255,0.75)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="31" cy="5" r="2.2" fill="white" opacity=".9"/>
+      </svg>
+    </div>
     <div class="header-text">
       <h1>Sistema de Execução Orçamentária</h1>
       <p>Gerador automático de relatório para publicação no SUAP</p>
@@ -1021,57 +1032,71 @@ function buildElementGroups(dataRows) {
 
 // ─────────────────────────────────────────────
 // CONSTRUIR LINHAS SUAP
+// REGRAS (v3 — Jun/2026):
+//  • Subitens -9 são sempre incluídos individualmente
+//  • Para elementos com subitens válidos (≠ -9):
+//      PROVISÃO = EMPENHADO  (regra legada mantida)
+//  • Para subitens -9 dentro de elemento misto:
+//      a linha -9 é exibida com seu valor de provisão original
+//  • Total Geral coluna 15:
+//      sum(emp de naturezas válidas) + sum(prov dos -9)
 // ─────────────────────────────────────────────
 function buildSuapRows(elements) {
   const rows = [];
 
   elements.forEach(elem => {
-    const subitems = elem.subitems;
+    const subitems  = elem.subitems;
     const validSubs = subitems.filter(s => s.subNum !== '-9');
+    const minus9s   = subitems.filter(s => s.subNum === '-9');
     const onlyMinus9 = validSubs.length === 0;
 
     if (onlyMinus9) {
-      // Elemento com APENAS -9: linha única, provisão = valor original do -9
-      const s9 = subitems.find(s => s.subNum === '-9') || {};
-      const provVal = s9.prov !== '' && s9.prov != null ? s9.prov : 0;
-      const empVal  = s9.emp  !== '' && s9.emp  != null ? s9.emp  : 0;
-      const liqVal  = s9.liq  !== '' && s9.liq  != null ? s9.liq  : 0;
-      const pagoVal = s9.pago !== '' && s9.pago != null ? s9.pago : 0;
-      rows.push({
-        type: 'data',
-        elemNum:  elem.num,
-        elemDesc: elem.desc,
-        subNum:   '-9',
-        subDesc:  'NÃO SE APLICA',
-        natureza: '-9',
-        prov:     provVal,
-        emp:      empVal,
-        liq:      liqVal,
-        pago:     pagoVal,
-        only9:    true,
-      });
-      // Subtotal do elemento (mesmo que só tenha -9)
-      rows.push({
-        type: 'subtotal_elem',
-        elemNum:  elem.num,
-        elemDesc: elem.desc,
-        prov:     provVal,
-        emp:      empVal,
-        liq:      liqVal,
-        pago:     pagoVal,
-      });
-    } else {
-      // Elemento com subitens válidos: aplicar regra PROVISÃO = EMPENHADO
+      // ── Elemento com APENAS linhas -9 ──
+      // Cada ocorrência -9 ganha linha própria; provisão = valor original do -9
       let sumProv = 0, sumEmp = 0, sumLiq = 0, sumPago = 0;
 
+      minus9s.forEach(s9 => {
+        const provVal = s9.prov !== '' && s9.prov != null ? Number(s9.prov) : 0;
+        const empVal  = s9.emp  !== '' && s9.emp  != null ? Number(s9.emp)  : 0;
+        const liqVal  = s9.liq  !== '' && s9.liq  != null ? Number(s9.liq)  : 0;
+        const pagoVal = s9.pago !== '' && s9.pago != null ? Number(s9.pago) : 0;
+        rows.push({
+          type:     'data',
+          elemNum:  elem.num,
+          elemDesc: elem.desc,
+          subNum:   '-9',
+          subDesc:  'NÃO SE APLICA',
+          natureza: '-9',
+          prov:     provVal,
+          emp:      empVal,
+          liq:      liqVal,
+          pago:     pagoVal,
+          only9:    true,
+        });
+        sumProv += provVal;
+        sumEmp  += empVal;
+        sumLiq  += liqVal;
+        sumPago += pagoVal;
+      });
+
+      rows.push({
+        type: 'subtotal_elem',
+        elemNum: elem.num, elemDesc: elem.desc,
+        prov: sumProv, emp: sumEmp, liq: sumLiq, pago: sumPago,
+      });
+
+    } else {
+      // ── Elemento MISTO: subitens válidos + possíveis linhas -9 ──
+      // Ordem: primeiro subitens válidos (prov=emp), depois -9s
+      let sumProv = 0, sumEmp = 0, sumLiq = 0, sumPago = 0;
+
+      // Subitens válidos: PROVISÃO = EMPENHADO (regra legada)
       validSubs.forEach(sub => {
-        // Código natureza: 3390 + pad2(elemNum) + pad2(subNum)
         const natureza = '3390' + pad2(elem.num) + pad2(sub.subNum);
         const empVal  = sub.emp  !== '' && sub.emp  != null ? Number(sub.emp)  : 0;
         const liqVal  = sub.liq  !== '' && sub.liq  != null ? Number(sub.liq)  : 0;
         const pagoVal = sub.pago !== '' && sub.pago != null ? Number(sub.pago) : 0;
-        // Regra: PROVISÃO RECEBIDA = DESPESAS EMPENHADAS (para subitens válidos)
-        const provVal = empVal;
+        const provVal = empVal;   // regra: prov = emp para subitens elegíveis
         rows.push({
           type:     'data',
           elemNum:  elem.num,
@@ -1091,7 +1116,32 @@ function buildSuapRows(elements) {
         sumPago += pagoVal;
       });
 
-      // Linha de subtotal do elemento
+      // Linhas -9: exibidas individualmente com seu valor de provisão original
+      minus9s.forEach(s9 => {
+        const provVal = s9.prov !== '' && s9.prov != null ? Number(s9.prov) : 0;
+        const empVal  = s9.emp  !== '' && s9.emp  != null ? Number(s9.emp)  : 0;
+        const liqVal  = s9.liq  !== '' && s9.liq  != null ? Number(s9.liq)  : 0;
+        const pagoVal = s9.pago !== '' && s9.pago != null ? Number(s9.pago) : 0;
+        rows.push({
+          type:     'data',
+          elemNum:  elem.num,
+          elemDesc: elem.desc,
+          subNum:   '-9',
+          subDesc:  'NÃO SE APLICA',
+          natureza: '-9',
+          prov:     provVal,
+          emp:      empVal,
+          liq:      liqVal,
+          pago:     pagoVal,
+          only9:    false,
+          isMinus9: true,    // flag: -9 dentro de elem misto
+        });
+        sumProv += provVal;
+        sumEmp  += empVal;
+        sumLiq  += liqVal;
+        sumPago += pagoVal;
+      });
+
       rows.push({
         type:     'subtotal_elem',
         elemNum:  elem.num,
@@ -1104,16 +1154,20 @@ function buildSuapRows(elements) {
     }
   });
 
-  // Total geral
+  // ── Total Geral ──
+  // Provisão = soma de todos os valores prov das linhas data (emp para válidos + prov_orig para -9s)
   const dataOnly = rows.filter(r => r.type === 'data');
-  const totProv  = dataOnly.reduce((a, r) => a + r.prov, 0);
-  const totEmp   = dataOnly.reduce((a, r) => a + r.emp,  0);
-  const totLiq   = dataOnly.reduce((a, r) => a + r.liq,  0);
-  const totPago  = dataOnly.reduce((a, r) => a + r.pago, 0);
+  const totProv  = round2(dataOnly.reduce((a, r) => a + r.prov, 0));
+  const totEmp   = round2(dataOnly.reduce((a, r) => a + r.emp,  0));
+  const totLiq   = round2(dataOnly.reduce((a, r) => a + r.liq,  0));
+  const totPago  = round2(dataOnly.reduce((a, r) => a + r.pago, 0));
 
   rows.push({ type: 'total_geral', prov: totProv, emp: totEmp, liq: totLiq, pago: totPago });
   return rows;
 }
+
+// Arredondamento financeiro preciso (evita 0.1+0.2 ≠ 0.3)
+function round2(v) { return Math.round(v * 100) / 100; }
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 
@@ -1155,11 +1209,19 @@ function renderValidations(elements) {
   const dataRows= suap.filter(r => r.type === 'data');
   const totRow  = suap.find(r => r.type === 'total_geral') || {};
 
-  const validData = dataRows.filter(r => !r.only9);
+  const validData = dataRows.filter(r => !r.only9 && !r.isMinus9);
   const invalid   = validData.filter(r => Math.abs(r.prov - r.emp) > 0.01);
 
-  const v1_ok = Math.abs(totRow.prov - totRow.emp) < 1;
-  const only9 = dataRows.filter(r => r.only9);
+  const only9 = dataRows.filter(r => r.only9 || r.isMinus9);
+
+  // ── Validação: col-15 = sum(emp válidos) + sum(prov -9s)
+  // Calcula valores esperados a partir dos dados originais
+  const sumEmpValidos   = round2(dataRows.filter(r => !r.only9 && !r.isMinus9).reduce((a,r)=>a+r.emp,0));
+  const sumProv9s       = round2(dataRows.filter(r => r.only9 || r.isMinus9).reduce((a,r)=>a+r.prov,0));
+  const expectedProv15  = round2(sumEmpValidos + sumProv9s);
+  const actualProv15    = round2(totRow.prov || 0);
+  const prov15ok        = Math.abs(actualProv15 - expectedProv15) < 0.02;
+
   const inconsistencias = elements.filter(e => {
     const validSubs = e.subitems.filter(s => s.subNum !== '-9');
     return validSubs.some(s => s.subNum === '??' || !s.subDesc);
@@ -1202,8 +1264,16 @@ function renderValidations(elements) {
       ok: true,
       info: true,
       detail: only9.length > 0
-        ? `${only9.length} elemento(s): ${only9.map(r=>r.elemNum).join(', ')} (provisão preservada)`
+        ? `${only9.length} elemento(s): ${[...new Set(only9.map(r=>r.elemNum))].join(', ')} (provisão preservada)`
         : 'Nenhum'
+    },
+    {
+      // NOVA VALIDAÇÃO: consistência da coluna 15
+      label: 'Consistência Coluna 15 — Provisão Recebida',
+      ok: prov15ok,
+      detail: prov15ok
+        ? `Valor R$ ${fmtMoney(actualProv15)} = Emp. (R$ ${fmtMoney(sumEmpValidos)}) + "-9" (R$ ${fmtMoney(sumProv9s)})`
+        : `⚠️ Esperado R$ ${fmtMoney(expectedProv15)} | Calculado R$ ${fmtMoney(actualProv15)}`
     },
     {
       label: 'Inconsistências nos agrupamentos',
@@ -1335,9 +1405,9 @@ function buildSuapTableHTML(suapRows) {
   const TDSN= (txt) =>
     `<td style="${B}${FONT}padding:7px 10px;text-align:right;background:#edf0f4;font-weight:600;font-size:12px;">${txt}</td>`;
   const TDTL= (txt, extra='') =>
-    `<td style="${BD}${FONT}padding:9px 10px;text-align:right;letter-spacing:.4px;background:#e0e5ed;color:#2d3748;font-weight:700;font-size:12px;" ${extra}>${txt}</td>`;
+    `<td style="${BD}${FONT}padding:9px 10px;text-align:right;letter-spacing:.4px;background:#e0e5ed;color:#2d3748;font-weight:700;font-size:13px;" ${extra}>${txt}</td>`;
   const TDTN= (txt) =>
-    `<td style="${BD}${FONT}padding:9px 10px;text-align:right;background:#e0e5ed;color:#2d3748;font-weight:700;font-size:12px;">${txt}</td>`;
+    `<td style="${BD}${FONT}padding:9px 10px;text-align:right;background:#e0e5ed;color:#2d3748;font-weight:700;font-size:13px;">${txt}</td>`;
 
   let out = `<table style="width:100%;border-collapse:collapse;font-size:12px;font-family:'Inter','Segoe UI',system-ui,sans-serif;border:1px solid #c8d0dc;"><thead style="display:table-row-group;"><tr>`;
   out += THL('ELEMENTO DESPESA', 'colspan="2"');
