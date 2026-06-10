@@ -1,0 +1,1761 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema SUAP — Gerador de Relatório de Execução Orçamentária</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --navy:    #0d2137;
+    --navy2:   #163454;
+    --accent:  #1a6fc4;
+    --accent2: #2589e6;
+    --gold:    #c8a227;
+    --success: #1a8a5a;
+    --warn:    #b85c00;
+    --danger:  #c0222a;
+    --bg:      #f0f3f7;
+    --surface: #ffffff;
+    --border:  #d0d9e4;
+    --text:    #1a2535;
+    --muted:   #5a6a7e;
+    --mono:    'Courier New', monospace;
+    --sans:    'Segoe UI', system-ui, sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy2) 60%, #1a4a7a 100%);
+    color: #fff;
+    padding: 0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  }
+  .header-inner {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 18px 32px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  .header-logo {
+    width: 48px; height: 48px;
+    background: var(--accent);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .header-text h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: .4px; }
+  .header-text p  { font-size: .8rem; opacity: .72; margin-top: 2px; }
+  .header-badge {
+    margin-left: auto;
+    background: rgba(255,255,255,.1);
+    border: 1px solid rgba(255,255,255,.2);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: .72rem;
+    letter-spacing: .5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .main { max-width: 1400px; margin: 0 auto; padding: 28px 24px 60px; }
+
+  /* ── UPLOAD ZONE ── */
+  #upload-section { margin-bottom: 28px; }
+  .upload-card {
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 40px 32px;
+    text-align: center;
+    transition: border-color .2s, background .2s;
+    cursor: pointer;
+    position: relative;
+  }
+  .upload-card.drag-over {
+    border-color: var(--accent);
+    background: #e8f1fb;
+  }
+  .upload-card.has-file {
+    border-style: solid;
+    border-color: var(--success);
+    background: #f0faf5;
+    padding: 24px 32px;
+  }
+  .upload-icon { font-size: 3rem; margin-bottom: 12px; opacity: .7; }
+  .upload-card h2 { font-size: 1.15rem; font-weight: 600; color: var(--navy); margin-bottom: 6px; }
+  .upload-card p  { color: var(--muted); font-size: .88rem; margin-bottom: 18px; }
+  .btn-upload {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-size: .9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  .btn-upload:hover { background: var(--accent2); }
+  #file-input { display: none; }
+  .file-info {
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    font-size: .92rem; color: var(--success); font-weight: 600;
+  }
+  .file-info span { font-weight: 400; color: var(--muted); font-size: .82rem; }
+
+  /* ── BUTTONS ROW ── */
+  .actions {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 28px; align-items: center;
+  }
+  .btn {
+    border: none; border-radius: 8px; padding: 10px 20px;
+    font-size: .88rem; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; gap: 7px;
+    transition: opacity .15s, transform .1s;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-primary  { background: var(--accent);  color: #fff; }
+  .btn-success  { background: var(--success); color: #fff; }
+  .btn-gold     { background: var(--gold);    color: #fff; }
+  .btn-navy     { background: var(--navy);    color: #fff; }
+  .btn-pdf      { background: #8b0000;        color: #fff; }
+  .btn-outline  { background: #fff; color: var(--navy); border: 1.5px solid var(--border); }
+  .btn:not(:disabled):hover { opacity: .88; }
+
+  /* ── DASHBOARD ── */
+  .dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .kpi {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 18px 20px;
+    border-left: 4px solid var(--accent);
+    box-shadow: 0 1px 6px rgba(0,0,0,.06);
+  }
+  .kpi.warn  { border-left-color: var(--gold); }
+  .kpi.ok    { border-left-color: var(--success); }
+  .kpi.alert { border-left-color: var(--danger); }
+  .kpi-label { font-size: .73rem; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 6px; }
+  .kpi-value { font-size: 1.35rem; font-weight: 700; color: var(--navy); line-height: 1; }
+  .kpi-value.money { font-size: 1.05rem; font-family: var(--mono); }
+  .kpi-sub   { font-size: .72rem; color: var(--muted); margin-top: 4px; }
+
+  /* ── VALIDATION PANEL ── */
+  .validation-panel {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.06);
+  }
+  .validation-panel h3 { font-size: .95rem; font-weight: 700; color: var(--navy); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .validations { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px; }
+  .val-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 14px; border-radius: 8px;
+    font-size: .83rem;
+    background: #f6f8fb;
+  }
+  .val-item.pass { background: #f0faf5; }
+  .val-item.fail { background: #fff5f5; }
+  .val-item.info { background: #fffbf0; }
+  .val-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+  .val-text strong { display: block; font-weight: 600; margin-bottom: 2px; color: var(--text); }
+  .val-text span   { color: var(--muted); font-size: .78rem; }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 0; margin-bottom: 0; border-bottom: 2px solid var(--border); }
+  .tab-btn {
+    background: none; border: none; padding: 11px 22px;
+    font-size: .88rem; font-weight: 600; cursor: pointer;
+    color: var(--muted); border-bottom: 3px solid transparent;
+    margin-bottom: -2px; transition: color .15s, border-color .15s;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text); }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── TABLE WRAPPER ── */
+  .table-card {
+    background: var(--surface);
+    border-radius: 0 0 12px 12px;
+    padding: 0;
+    box-shadow: 0 1px 6px rgba(0,0,0,.06);
+    overflow: hidden;
+  }
+  .table-scroll { overflow-x: auto; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem;
+    min-width: 720px;
+  }
+  thead th {
+    background: var(--navy);
+    color: #fff;
+    padding: 12px 14px;
+    text-align: left;
+    font-size: .74rem;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    white-space: nowrap;
+  }
+  thead th.num { text-align: right; }
+  tbody td {
+    padding: 9px 14px;
+    border-bottom: 1px solid #edf0f5;
+    vertical-align: middle;
+  }
+  tbody td.num {
+    text-align: right;
+    font-family: var(--mono);
+    font-size: .8rem;
+    white-space: nowrap;
+  }
+  tbody tr:hover { background: #f7f9fd; }
+  tbody tr.row-total-elem {
+    background: #e8eef7;
+    font-weight: 700;
+  }
+  tbody tr.row-total-elem td { border-top: 2px solid #c0ccde; }
+  tbody tr.row-total-geral {
+    background: var(--navy);
+    color: #fff;
+    font-weight: 700;
+  }
+  tbody tr.row-total-geral td { font-family: var(--mono); border: none; }
+  tbody tr.row-only9 { background: #fff9ec; }
+  .badge-elem {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 5px;
+    padding: 2px 7px;
+    font-size: .72rem;
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .natureza-code {
+    font-family: var(--mono);
+    font-weight: 700;
+    color: var(--navy2);
+    font-size: .8rem;
+  }
+  .zero-dash { color: #aaa; }
+
+  /* ── SUAP TABLE PREVIEW ── */
+  .suap-preview {
+    background: var(--surface);
+    border-radius: 0 0 12px 12px;
+    padding: 24px;
+    box-shadow: 0 1px 6px rgba(0,0,0,.06);
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  }
+  .suap-title {
+    text-align: center;
+    font-size: .95rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    margin-bottom: 20px;
+    color: #2d3748;
+    padding-bottom: 14px;
+    border-bottom: 2px solid #d1d9e3;
+  }
+  #suap-table-container table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem;
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-weight: 500;
+  }
+  #suap-table-container thead th {
+    background: #edf0f4;
+    color: #3a4558;
+    padding: 11px 12px;
+    text-align: center;
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .3px;
+    border: 1px solid #d1d9e3;
+  }
+  #suap-table-container thead th.left { text-align: left; }
+  #suap-table-container tbody td {
+    padding: 8px 12px;
+    border: 1px solid #e5eaf1;
+    vertical-align: middle;
+    font-weight: 500;
+  }
+  #suap-table-container tbody td.right {
+    text-align: right;
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    font-size: .78rem;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  #suap-table-container tbody td.center { text-align: center; }
+  #suap-table-container tbody tr.suap-total-elem {
+    background: #edf0f4;
+    font-weight: 600;
+  }
+  #suap-table-container tbody tr.suap-total-geral {
+    background: #e0e5ed;
+    color: #2d3748;
+    font-weight: 700;
+  }
+  #suap-table-container tbody tr.suap-total-geral td {
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    border-color: #c8d0dc;
+    font-weight: 700;
+  }
+
+  /* ── ALERTS ── */
+  .alert {
+    border-radius: 8px; padding: 12px 16px;
+    font-size: .85rem; display: flex; gap: 10px;
+    align-items: flex-start; margin-bottom: 14px;
+  }
+  .alert-info    { background: #e8f1fb; color: #0d3c6e; border-left: 4px solid var(--accent); }
+  .alert-success { background: #f0faf5; color: #0d4a2c; border-left: 4px solid var(--success); }
+  .alert-warn    { background: #fff8e8; color: #5a3700; border-left: 4px solid var(--gold); }
+  .alert-error   { background: #fff0f0; color: #6b0000; border-left: 4px solid var(--danger); }
+
+  /* ── LOADING ── */
+  #loading {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(13,33,55,.7);
+    z-index: 999;
+    align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px;
+    color: #fff;
+  }
+  #loading.show { display: flex; }
+  .spinner {
+    width: 44px; height: 44px;
+    border: 4px solid rgba(255,255,255,.2);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .section-label {
+    font-size: .72rem; text-transform: uppercase; letter-spacing: .8px;
+    color: var(--muted); font-weight: 700; margin-bottom: 10px; padding-top: 4px;
+  }
+  .tabs-wrapper { background: var(--surface); border-radius: 12px; overflow: hidden; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+  .tabs-wrapper .tabs { background: #f7f9fc; padding: 0 16px; }
+
+  #initial-msg {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    box-shadow: 0 1px 6px rgba(0,0,0,.06);
+    color: var(--muted);
+  }
+  #initial-msg .big-icon { font-size: 3.5rem; margin-bottom: 14px; }
+  #initial-msg h3 { font-size: 1.1rem; color: var(--navy); margin-bottom: 8px; }
+  #initial-msg p  { font-size: .88rem; max-width: 420px; margin: 0 auto; }
+
+  /* ── RAW TABLE ── */
+  .raw-table-wrapper { max-height: 480px; overflow: auto; }
+  .raw-table-wrapper table thead th { background: #2a4a6e; }
+  .raw-table-wrapper table tbody tr:nth-child(odd) { background: #fafbfd; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 640px) {
+    .header-inner { padding: 14px 16px; }
+    .main { padding: 16px 12px 40px; }
+    .header-badge { display: none; }
+    .actions { gap: 8px; }
+    .btn { padding: 9px 14px; font-size: .82rem; }
+  }
+
+  .copy-success {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--success); color: #fff;
+    padding: 12px 20px; border-radius: 8px;
+    font-size: .88rem; font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0,0,0,.2);
+    animation: fadeInUp .3s ease;
+    z-index: 1000;
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── IMPRESSÃO — cabeçalho da tabela SUAP apenas na 1ª página ── */
+  @media print {
+    #suap-table-container thead { display: table-row-group; }
+    #suap-table-container table { page-break-inside: auto; }
+    #suap-table-container tr    { page-break-inside: avoid; page-break-after: auto; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-logo">📊</div>
+    <div class="header-text">
+      <h1>Sistema de Execução Orçamentária</h1>
+      <p>Gerador automático de relatório para publicação no SUAP</p>
+    </div>
+    <div class="header-badge">Versão 2.0 — Produção</div>
+  </div>
+</header>
+
+<div class="main">
+
+  <!-- UPLOAD -->
+  <div id="upload-section">
+    <div class="upload-card" id="drop-zone">
+      <div id="upload-idle">
+        <div class="upload-icon">📂</div>
+        <h2>Carregar Relatório da Despesa Realizada</h2>
+        <p>Arraste o arquivo XLSX aqui ou clique para selecionar.<br>O sistema processará automaticamente todos os dados.</p>
+        <button class="btn-upload" onclick="document.getElementById('file-input').click()">Selecionar arquivo XLSX</button>
+        <input type="file" id="file-input" accept=".xlsx,.xls">
+      </div>
+      <div id="upload-done" style="display:none">
+        <div class="file-info">
+          <span style="font-size:1.8rem">✅</span>
+          <div>
+            <div id="file-name-display">—</div>
+            <span id="file-size-display">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTIONS -->
+  <div class="actions" id="action-row" style="display:none">
+    <button class="btn btn-primary"  id="btn-process">⚙️ Processar Relatório</button>
+    <button class="btn btn-success"  id="btn-copy"    disabled>📋 Copiar Tabela SUAP</button>
+    <button class="btn btn-navy"     id="btn-html"    disabled>💾 Exportar HTML</button>
+    <button class="btn btn-pdf"      id="btn-pdf"     disabled>🖨️ Gerar PDF</button>
+    <button class="btn btn-outline"  id="btn-reset"   style="margin-left:auto">🔄 Novo Relatório</button>
+  </div>
+
+  <!-- ALERTS -->
+  <div id="alerts-area"></div>
+
+  <!-- INITIAL MESSAGE -->
+  <div id="initial-msg">
+    <div class="big-icon">📋</div>
+    <h3>Aguardando arquivo</h3>
+    <p>Carregue o arquivo XLSX mensal do Relatório da Despesa Realizada para iniciar o processamento automático.</p>
+  </div>
+
+  <!-- RESULTS (hidden until processed) -->
+  <div id="results-area" style="display:none">
+
+    <!-- DASHBOARD -->
+    <div class="section-label">Painel de Auditoria</div>
+    <div class="dashboard" id="dashboard"></div>
+
+    <!-- VALIDATIONS -->
+    <div class="validation-panel" id="validation-panel">
+      <h3>🔍 Validações Automáticas</h3>
+      <div class="validations" id="validations-list"></div>
+    </div>
+
+    <!-- TABS -->
+    <div class="section-label">Visualização dos Dados</div>
+    <div class="tabs-wrapper">
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="suap">Tabela SUAP (Publicação)</button>
+        <button class="tab-btn" data-tab="processed">Dados Processados</button>
+        <button class="tab-btn" data-tab="raw">Dados Originais (XLSX)</button>
+      </div>
+
+      <!-- TAB: SUAP -->
+      <div class="tab-content active" id="tab-suap">
+        <div class="suap-preview">
+          <div class="suap-title" id="suap-title">EXECUÇÃO DAS DESPESAS ORÇAMENTÁRIAS</div>
+          <div class="table-scroll" id="suap-table-container"></div>
+        </div>
+      </div>
+
+      <!-- TAB: PROCESSED -->
+      <div class="tab-content" id="tab-processed">
+        <div class="table-card">
+          <div class="table-scroll">
+            <table id="processed-table">
+              <thead>
+                <tr>
+                  <th>Elem.</th><th>Descrição Elemento</th>
+                  <th>Sub.</th><th>Descrição Subitem</th>
+                  <th class="num">Natureza</th>
+                  <th class="num">Provisão Recebida</th>
+                  <th class="num">Empenhado</th>
+                  <th class="num">Liquidado</th>
+                  <th class="num">Pago</th>
+                  <th>Obs.</th>
+                </tr>
+              </thead>
+              <tbody id="processed-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: RAW -->
+      <div class="tab-content" id="tab-raw">
+        <div class="table-card">
+          <div style="padding:10px 16px 0;font-size:.75rem;color:var(--muted);display:flex;gap:16px;align-items:center">
+            <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:14px;background:#ddeeff;border:1px solid #aac;display:inline-block;border-radius:3px"></span> Linha de cabeçalho (colunas)</span>
+            <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:14px;height:14px;background:#ddffd0;border:2px solid #1a8a5a;display:inline-block;border-radius:3px"></span> Primeira linha de dados lida</span>
+          </div>
+          <div class="raw-table-wrapper">
+            <table id="raw-table">
+              <thead id="raw-thead"></thead>
+              <tbody id="raw-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /results-area -->
+</div><!-- /main -->
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div style="font-size:.95rem;opacity:.85">Processando relatório…</div>
+</div>
+
+<script>
+'use strict';
+
+// ─────────────────────────────────────────────
+// ESTADO GLOBAL
+// ─────────────────────────────────────────────
+const state = {
+  rawData:       null,   // Array de arrays do XLSX
+  headers:       null,   // linha de cabeçalho
+  processedRows: null,   // linhas processadas
+  suapRows:      null,   // linhas para publicação SUAP
+  fileName:      '',
+  fileSize:      '',
+  mesReferencia: '',
+};
+
+// ─────────────────────────────────────────────
+// UTILITÁRIOS
+// ─────────────────────────────────────────────
+const fmt = v => {
+  if (v === null || v === undefined || v === '' || v === 0) return '-';
+  const n = (typeof v === 'number') ? v : parseFloat(String(v).replace(',', '.'));
+  if (isNaN(n) || n === 0) return '-';
+  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const fmtMoney = v => {
+  if (v === null || v === undefined || v === '') return 'R$ 0,00';
+  const n = (typeof v === 'number') ? v : parseFloat(String(v).replace(',', '.'));
+  if (isNaN(n)) return 'R$ 0,00';
+  return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const toNum = v => {
+  if (v === null || v === undefined || v === '') return 0;
+  const n = parseFloat(String(v).replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+};
+
+const cleanStr = v => {
+  if (v === null || v === undefined) return '';
+  return String(v).replace(/'/g, '').trim();
+};
+
+const showLoading = b => document.getElementById('loading').classList.toggle('show', b);
+
+function showAlert(msg, type = 'info') {
+  const area = document.getElementById('alerts-area');
+  const icons = { info: 'ℹ️', success: '✅', warn: '⚠️', error: '❌' };
+  const el = document.createElement('div');
+  el.className = `alert alert-${type}`;
+  el.innerHTML = `<span>${icons[type]}</span><div>${msg}</div>`;
+  area.appendChild(el);
+}
+
+function clearAlerts() {
+  document.getElementById('alerts-area').innerHTML = '';
+}
+
+function toast(msg) {
+  const el = document.createElement('div');
+  el.className = 'copy-success';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2800);
+}
+
+// ─────────────────────────────────────────────
+// UPLOAD / DRAG & DROP
+// ─────────────────────────────────────────────
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const uploadIdle = document.getElementById('upload-idle');
+const uploadDone = document.getElementById('upload-done');
+
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+  if (!file.name.match(/\.(xlsx|xls)$/i)) {
+    showAlert('Por favor, selecione um arquivo XLSX válido.', 'error'); return;
+  }
+  state.fileName = file.name;
+  state.fileSize = (file.size / 1024).toFixed(1) + ' KB';
+  document.getElementById('file-name-display').textContent = file.name;
+  document.getElementById('file-size-display').textContent = state.fileSize;
+  uploadIdle.style.display = 'none';
+  uploadDone.style.display = 'block';
+  dropZone.classList.add('has-file');
+  document.getElementById('action-row').style.display = 'flex';
+
+  const reader = new FileReader();
+  reader.onload = evt => {
+    const wb = XLSX.read(evt.target.result, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    state.rawData = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ─────────────────────────────────────────────
+// RESET
+// ─────────────────────────────────────────────
+document.getElementById('btn-reset').addEventListener('click', () => {
+  Object.assign(state, { rawData:null, headers:null, processedRows:null, suapRows:null, fileName:'', fileSize:'', mesReferencia:'' });
+  uploadIdle.style.display = 'block';
+  uploadDone.style.display = 'none';
+  dropZone.classList.remove('has-file');
+  fileInput.value = '';
+  document.getElementById('action-row').style.display = 'none';
+  document.getElementById('results-area').style.display = 'none';
+  document.getElementById('initial-msg').style.display = 'block';
+  clearAlerts();
+  setButtonsState(false);
+});
+
+function setButtonsState(enabled) {
+  ['btn-copy','btn-html','btn-pdf'].forEach(id => {
+    document.getElementById(id).disabled = !enabled;
+  });
+}
+
+// ─────────────────────────────────────────────
+// TABS
+// ─────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b===btn));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-'+tab));
+  });
+});
+
+// ─────────────────────────────────────────────
+// PROCESSAMENTO PRINCIPAL
+// ─────────────────────────────────────────────
+document.getElementById('btn-process').addEventListener('click', () => {
+  if (!state.rawData) { showAlert('Nenhum arquivo carregado.', 'error'); return; }
+  clearAlerts();
+  showLoading(true);
+  setTimeout(() => {
+    try {
+      processData();
+    } catch(e) {
+      showLoading(false);
+      showAlert('Erro ao processar: ' + e.message, 'error');
+      console.error(e);
+    }
+  }, 80);
+});
+
+function processData() {
+  const rows = state.rawData;
+
+  // ══════════════════════════════════════════════════════
+  // UTILITÁRIOS LOCAIS
+  // ══════════════════════════════════════════════════════
+  const clean = v => String(v ?? '').replace(/'/g, '').trim();
+
+  const parseVal = v => {
+    if (v === null || v === undefined || v === '') return '';
+    if (typeof v === 'number') return isNaN(v) ? '' : v;
+    const s = clean(v);
+    if (s === '' || s === '-') return '';
+    let n;
+    if (s.includes(',') && s.includes('.')) {
+      n = parseFloat(s.replace(/\./g, '').replace(',', '.'));
+    } else if (s.includes(',')) {
+      n = parseFloat(s.replace(',', '.'));
+    } else {
+      n = parseFloat(s);
+    }
+    return isNaN(n) ? '' : n;
+  };
+
+  const isElemCode  = s => /^\d{2}$/.test(s);
+  const isSubCode   = s => /^\d{1,3}$/.test(s) || s === '-9';
+  const isTotalLine = s => s.toUpperCase() === 'TOTAL';
+
+  // ══════════════════════════════════════════════════════
+  // 1. DETECTAR MÊS DE REFERÊNCIA (nas primeiras 10 linhas)
+  // ══════════════════════════════════════════════════════
+  let mesRef = '';
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    rows[i].forEach(c => {
+      const s = String(c ?? '');
+      const m = s.match(/M[EÊ]S\s+LA[NÇ]AMENTO[:\s]+(\S+)/i) || s.match(/([A-Z]{3}\/\d{4})/i);
+      if (m && !mesRef) mesRef = m[1];
+    });
+  }
+  state.mesReferencia = mesRef || '';
+
+  // ══════════════════════════════════════════════════════
+  // 2. DETECTAR COLUNAS DE VALOR (varrem até linha 25)
+  //    — independente de onde esteja o cabeçalho
+  // ══════════════════════════════════════════════════════
+  let colProv = 4, colEmp = 5, colLiq = 6, colPago = 7;
+  let headerRow = -1;
+
+  for (let i = 0; i < Math.min(rows.length, 25); i++) {
+    const r = rows[i];
+    let fProv = -1, fEmp = -1, fLiq = -1, fPago = -1;
+    r.forEach((c, j) => {
+      const s = String(c ?? '').toUpperCase().trim();
+      if ((s.includes('PROVISAO') || s.includes('PROVISÃO')) && s.includes('RECEBIDA')) fProv = j;
+      if (s.includes('EMPENHAD')) fEmp = j;
+      if (s.includes('LIQUIDAD')) fLiq = j;
+      if (s.includes('PAGA') || s === 'PAGAS' || s.includes('PAGO')) fPago = j;
+    });
+    if (fProv >= 0 && fEmp >= 0) {
+      headerRow = i;
+      colProv = fProv;
+      colEmp  = fEmp;
+      colLiq  = fLiq  >= 0 ? fLiq  : fEmp + 1;
+      colPago = fPago >= 0 ? fPago : colLiq + 1;
+      break;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════
+  // 3. DETERMINAR dataStart — ESTRATÉGIA SEGURA
+  //
+  //    Em vez de um número fixo de linhas a pular,
+  //    varremos desde a linha logo após o cabeçalho
+  //    e encontramos a PRIMEIRA linha que contém um
+  //    código de elemento (2 dígitos) OU um código de
+  //    subitem válido — isso garante que jamais
+  //    pulamos a linha 0 dos dados.
+  // ══════════════════════════════════════════════════════
+  let dataStart = headerRow >= 0 ? headerRow + 1 : 0;
+
+  // Avançar sobre eventuais linhas de sub-cabeçalho
+  // (ex.: linha com "Elemento Despesa | Subitem | 15 | 23 | 25 | 28")
+  // até encontrar a primeira linha com código numérico real
+  const scanLimit = Math.min(dataStart + 10, rows.length);
+  for (let i = dataStart; i < scanLimit; i++) {
+    const r = rows[i];
+    if (!r) continue;
+    const c0 = clean(r[0]);
+    const c2 = clean(r[2]);
+    // Linha é candidata a dado real se col0 é código de elemento
+    // OU col2 é código de subitem/subitem -9
+    if (isElemCode(c0) || isSubCode(c2)) {
+      dataStart = i;   // ← primeira linha de dado real
+      break;
+    }
+  }
+
+  // ══════════════════════════════════════════════════════
+  // 4. PARSE LINHA A LINHA — 100 % dos registros
+  //
+  //    Regras:
+  //    • Col 0 com 2 dígitos → atualiza elemento corrente
+  //    • Col 2 com subitem válido → empurra subitem
+  //    • Ambos na mesma linha (primeira linha de um elem)
+  //      → atualiza elemento E empurra subitem (ordem importa)
+  //    • Linha "Total" em col 2 → empurra total_elem
+  //    • Linha "Total" em col 0 sem elem/sub → total_geral (ignora)
+  //    • Linhas completamente vazias → pula
+  // ══════════════════════════════════════════════════════
+  const dataRows = [];
+  let currentElemNum  = '';
+  let currentElemDesc = '';
+
+  for (let i = dataStart; i < rows.length; i++) {
+    const r = rows[i];
+    if (!r || r.every(c => c === null || c === undefined || c === '')) continue;
+
+    const c0 = clean(r[colEmp > 4 ? 0 : 0]);   // coluna elem sempre = 0
+    const c1 = clean(r[1]);
+    const c2 = clean(r[2]);
+    const c3 = clean(r[3]);
+    const vProv = parseVal(r[colProv]);
+    const vEmp  = parseVal(r[colEmp]);
+    const vLiq  = parseVal(r[colLiq]);
+    const vPago = parseVal(r[colPago]);
+
+    // ── Total Geral (col 0 = "Total", col 2 vazio) ──
+    if (isTotalLine(c0) && c2 === '') continue;
+
+    // ── Total do Elemento (col 2 = "Total") ──
+    if (isTotalLine(c2)) {
+      if (currentElemNum) {
+        dataRows.push({
+          type: 'total_elem',
+          elemNum: currentElemNum, elemDesc: currentElemDesc,
+          prov: vProv, emp: vEmp, liq: vLiq, pago: vPago
+        });
+      }
+      continue;
+    }
+
+    // ── Atualizar elemento corrente (col 0 tem código de 2 dígitos) ──
+    if (isElemCode(c0)) {
+      currentElemNum  = c0;
+      currentElemDesc = c1 || currentElemDesc;
+    }
+
+    // ── Subitem (col 2 tem código numérico ou -9) ──
+    // Executado APÓS a atualização do elemento acima,
+    // para capturar o caso onde elem e subitem estão na mesma linha
+    const subRaw = c2.replace(/'/g, '').trim();
+    if (isSubCode(subRaw) && currentElemNum) {
+      dataRows.push({
+        type:     'subitem',
+        elemNum:  currentElemNum,
+        elemDesc: currentElemDesc,
+        subNum:   subRaw,
+        subDesc:  c3 || (subRaw === '-9' ? 'NAO SE APLICA' : ''),
+        prov:     vProv,
+        emp:      vEmp,
+        liq:      vLiq,
+        pago:     vPago
+      });
+    }
+  }
+
+  // ══════════════════════════════════════════════════════
+  // 5. DIAGNÓSTICO — log no console para debug
+  // ══════════════════════════════════════════════════════
+  const subitens = dataRows.filter(r => r.type === 'subitem');
+  console.info(`[SUAP] headerRow=${headerRow} | dataStart=${dataStart} | subitens=${subitens.length}`);
+  subitens.forEach((r, idx) =>
+    console.info(`  [${idx}] elem=${r.elemNum} sub=${r.subNum} emp=${r.emp} prov=${r.prov}`)
+  );
+
+  if (dataRows.length === 0) {
+    throw new Error(
+      `Não foi possível extrair dados. ` +
+      `Cabeçalho detectado na linha ${headerRow + 1}, dados a partir da linha ${dataStart + 1}. ` +
+      `Verifique se o arquivo está no formato correto (8 colunas: Elemento, Subitem, valores).`
+    );
+  }
+
+  state.processedRows = dataRows;
+
+  // ── Agrupar por elemento ──
+  const elements = buildElementGroups(dataRows);
+
+  // ── Gerar linhas SUAP ──
+  state.suapRows = buildSuapRows(elements);
+
+  // ── Renderizar tudo ──
+  renderDashboard(elements);
+  renderValidations(elements);
+  renderProcessedTable(dataRows);
+  renderRawTable(rows, headerRow, dataStart);
+  renderSuapTable(state.suapRows, mesRef);
+
+  document.getElementById('results-area').style.display = 'block';
+  document.getElementById('initial-msg').style.display  = 'none';
+  setButtonsState(true);
+  showLoading(false);
+  showAlert(
+    `✅ Relatório processado: <strong>${elements.length}</strong> elementos, ` +
+    `<strong>${subitens.length}</strong> subitens. ` +
+    (headerRow >= 0
+      ? `Cabeçalho na linha ${headerRow + 1}, dados a partir da linha ${dataStart + 1}.`
+      : '⚠️ Cabeçalho não encontrado — usando posição padrão.'),
+    'success'
+  );
+}
+
+// ─────────────────────────────────────────────
+// PARSER ALTERNATIVO (mantido por compatibilidade)
+// ─────────────────────────────────────────────
+function parseAlternative(rows, colProv, colEmp, colLiq, colPago, out) {
+  const cleanV = v => {
+    if (!v) return '';
+    const s = String(v).replace(/'/g, '').trim();
+    const n = parseFloat(s.replace(/\./g, '').replace(',', '.'));
+    return isNaN(n) ? '' : n;
+  };
+
+  let currentElem = '', currentElemDesc = '';
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i].map(c => String(c).replace(/'/g, '').trim());
+    const allUp = r.join(' ').toUpperCase();
+
+    if (allUp.includes('NAO SE APLICA') || allUp.includes('NÃO SE APLICA')) {
+      out.push({
+        type: 'subitem',
+        elemNum: currentElem, elemDesc: currentElemDesc,
+        subNum: '-9', subDesc: 'NAO SE APLICA',
+        prov: cleanV(r[colProv]), emp: cleanV(r[colEmp]),
+        liq: cleanV(r[colLiq]), pago: cleanV(r[colPago])
+      });
+      continue;
+    }
+
+    if (allUp.match(/\bTOTAL\b/) && currentElem) {
+      out.push({
+        type: 'total_elem', elemNum: currentElem, elemDesc: currentElemDesc,
+        prov: cleanV(r[colProv]), emp: cleanV(r[colEmp]),
+        liq: cleanV(r[colLiq]), pago: cleanV(r[colPago])
+      });
+      continue;
+    }
+
+    // Detectar número de elemento
+    for (let j = 0; j < Math.min(r.length, 6); j++) {
+      if (/^\d{2}$/.test(r[j])) {
+        const num = r[j];
+        const desc = r.slice(j+1, j+5).filter(s => /[A-Za-z]{3,}/.test(s)).join(' ');
+        if (desc && !currentElem || num !== currentElem) {
+          currentElem = num;
+          currentElemDesc = desc;
+        }
+        break;
+      }
+    }
+
+    // Detectar subitem (1-2 dígitos em posição após elemento, não sendo o próprio elemento)
+    const empV = cleanV(r[colEmp]);
+    const provV = cleanV(r[colProv]);
+    if ((empV !== '' || provV !== '') && currentElem) {
+      let sn = '', sd = '';
+      for (let j = 0; j < Math.min(r.length, 8); j++) {
+        if (/^\d{1,2}$/.test(r[j]) && r[j] !== currentElem) {
+          sn = r[j];
+          sd = r.slice(j+1).filter(s => /[A-Za-z]{3,}/.test(s)).join(' ');
+          break;
+        }
+      }
+      if (!sn) {
+        sd = r.filter(s => /[A-Za-z]{4,}/.test(s)).join(' ');
+        sn = '??';
+      }
+      out.push({
+        type: 'subitem',
+        elemNum: currentElem, elemDesc: currentElemDesc,
+        subNum: sn, subDesc: sd,
+        prov: provV, emp: empV,
+        liq: cleanV(r[colLiq]), pago: cleanV(r[colPago])
+      });
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// AGRUPAR POR ELEMENTO
+// ─────────────────────────────────────────────
+function buildElementGroups(dataRows) {
+  const map = new Map();
+
+  dataRows.forEach(row => {
+    if (row.type === 'total_geral') return;
+    const key = row.elemNum;
+    if (!key) return;
+    if (!map.has(key)) {
+      map.set(key, { num: key, desc: row.elemDesc, subitems: [], totalRow: null });
+    }
+    const g = map.get(key);
+    if (!g.desc && row.elemDesc) g.desc = row.elemDesc;
+    if (row.type === 'subitem') g.subitems.push(row);
+    if (row.type === 'total_elem') g.totalRow = row;
+  });
+
+  return Array.from(map.values()).sort((a,b) => parseInt(a.num)-parseInt(b.num));
+}
+
+// ─────────────────────────────────────────────
+// CONSTRUIR LINHAS SUAP
+// ─────────────────────────────────────────────
+function buildSuapRows(elements) {
+  const rows = [];
+
+  elements.forEach(elem => {
+    const subitems = elem.subitems;
+    const validSubs = subitems.filter(s => s.subNum !== '-9');
+    const onlyMinus9 = validSubs.length === 0;
+
+    if (onlyMinus9) {
+      // Elemento com APENAS -9: linha única, provisão = valor original do -9
+      const s9 = subitems.find(s => s.subNum === '-9') || {};
+      const provVal = s9.prov !== '' && s9.prov != null ? s9.prov : 0;
+      const empVal  = s9.emp  !== '' && s9.emp  != null ? s9.emp  : 0;
+      const liqVal  = s9.liq  !== '' && s9.liq  != null ? s9.liq  : 0;
+      const pagoVal = s9.pago !== '' && s9.pago != null ? s9.pago : 0;
+      rows.push({
+        type: 'data',
+        elemNum:  elem.num,
+        elemDesc: elem.desc,
+        subNum:   '-9',
+        subDesc:  'NÃO SE APLICA',
+        natureza: '-9',
+        prov:     provVal,
+        emp:      empVal,
+        liq:      liqVal,
+        pago:     pagoVal,
+        only9:    true,
+      });
+      // Subtotal do elemento (mesmo que só tenha -9)
+      rows.push({
+        type: 'subtotal_elem',
+        elemNum:  elem.num,
+        elemDesc: elem.desc,
+        prov:     provVal,
+        emp:      empVal,
+        liq:      liqVal,
+        pago:     pagoVal,
+      });
+    } else {
+      // Elemento com subitens válidos: aplicar regra PROVISÃO = EMPENHADO
+      let sumProv = 0, sumEmp = 0, sumLiq = 0, sumPago = 0;
+
+      validSubs.forEach(sub => {
+        // Código natureza: 3390 + pad2(elemNum) + pad2(subNum)
+        const natureza = '3390' + pad2(elem.num) + pad2(sub.subNum);
+        const empVal  = sub.emp  !== '' && sub.emp  != null ? Number(sub.emp)  : 0;
+        const liqVal  = sub.liq  !== '' && sub.liq  != null ? Number(sub.liq)  : 0;
+        const pagoVal = sub.pago !== '' && sub.pago != null ? Number(sub.pago) : 0;
+        // Regra: PROVISÃO RECEBIDA = DESPESAS EMPENHADAS (para subitens válidos)
+        const provVal = empVal;
+        rows.push({
+          type:     'data',
+          elemNum:  elem.num,
+          elemDesc: elem.desc,
+          subNum:   sub.subNum,
+          subDesc:  sub.subDesc,
+          natureza,
+          prov:     provVal,
+          emp:      empVal,
+          liq:      liqVal,
+          pago:     pagoVal,
+          only9:    false,
+        });
+        sumProv += provVal;
+        sumEmp  += empVal;
+        sumLiq  += liqVal;
+        sumPago += pagoVal;
+      });
+
+      // Linha de subtotal do elemento
+      rows.push({
+        type:     'subtotal_elem',
+        elemNum:  elem.num,
+        elemDesc: elem.desc,
+        prov:     sumProv,
+        emp:      sumEmp,
+        liq:      sumLiq,
+        pago:     sumPago,
+      });
+    }
+  });
+
+  // Total geral
+  const dataOnly = rows.filter(r => r.type === 'data');
+  const totProv  = dataOnly.reduce((a, r) => a + r.prov, 0);
+  const totEmp   = dataOnly.reduce((a, r) => a + r.emp,  0);
+  const totLiq   = dataOnly.reduce((a, r) => a + r.liq,  0);
+  const totPago  = dataOnly.reduce((a, r) => a + r.pago, 0);
+
+  rows.push({ type: 'total_geral', prov: totProv, emp: totEmp, liq: totLiq, pago: totPago });
+  return rows;
+}
+
+function pad2(n) { return String(n).padStart(2, '0'); }
+
+// ─────────────────────────────────────────────
+// RENDERIZAR DASHBOARD
+// ─────────────────────────────────────────────
+function renderDashboard(elements) {
+  const suap = state.suapRows;
+  const dataRows = suap.filter(r => r.type === 'data');
+  const totRow   = suap.find(r => r.type === 'total_geral') || {};
+
+  const elemCount   = elements.length;
+  const subCount    = dataRows.filter(r => !r.only9).length;
+  const only9Count  = dataRows.filter(r => r.only9).length;
+
+  const kpis = [
+    { label: 'Elementos',        value: elemCount,           cls: '' },
+    { label: 'Naturezas Válidas',value: subCount,            cls: '' },
+    { label: 'Somente "-9"',     value: only9Count,          cls: only9Count>0?'warn':'' },
+    { label: 'Provisão Total',   value: fmtMoney(totRow.prov), cls: 'ok', money: true },
+    { label: 'Empenhado Total',  value: fmtMoney(totRow.emp),  cls: 'ok', money: true },
+    { label: 'Liquidado Total',  value: fmtMoney(totRow.liq),  cls: '',   money: true },
+    { label: 'Pago Total',       value: fmtMoney(totRow.pago), cls: '',   money: true },
+  ];
+
+  document.getElementById('dashboard').innerHTML = kpis.map(k => `
+    <div class="kpi ${k.cls}">
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value ${k.money?'money':''}">${k.value}</div>
+    </div>
+  `).join('');
+}
+
+// ─────────────────────────────────────────────
+// RENDERIZAR VALIDAÇÕES
+// ─────────────────────────────────────────────
+function renderValidations(elements) {
+  const suap    = state.suapRows;
+  const dataRows= suap.filter(r => r.type === 'data');
+  const totRow  = suap.find(r => r.type === 'total_geral') || {};
+
+  const validData = dataRows.filter(r => !r.only9);
+  const invalid   = validData.filter(r => Math.abs(r.prov - r.emp) > 0.01);
+
+  const v1_ok = Math.abs(totRow.prov - totRow.emp) < 1;
+  const only9 = dataRows.filter(r => r.only9);
+  const inconsistencias = elements.filter(e => {
+    const validSubs = e.subitems.filter(s => s.subNum !== '-9');
+    return validSubs.some(s => s.subNum === '??' || !s.subDesc);
+  });
+
+  const items = [
+    {
+      label: 'Provisão = Empenhado (por natureza)',
+      ok: invalid.length === 0,
+      detail: invalid.length === 0
+        ? 'Todas as naturezas elegíveis estão equalizadas'
+        : `${invalid.length} natureza(s) com divergência`
+    },
+    {
+      label: 'Total Provisão Recebida',
+      ok: true,
+      info: true,
+      detail: 'R$ ' + fmtMoney(totRow.prov)
+    },
+    {
+      label: 'Total Empenhado',
+      ok: true,
+      info: true,
+      detail: 'R$ ' + fmtMoney(totRow.emp)
+    },
+    {
+      label: 'Total Liquidado',
+      ok: true,
+      info: true,
+      detail: 'R$ ' + fmtMoney(totRow.liq)
+    },
+    {
+      label: 'Total Pago',
+      ok: true,
+      info: true,
+      detail: 'R$ ' + fmtMoney(totRow.pago)
+    },
+    {
+      label: 'Elementos com apenas "-9"',
+      ok: true,
+      info: true,
+      detail: only9.length > 0
+        ? `${only9.length} elemento(s): ${only9.map(r=>r.elemNum).join(', ')} (provisão preservada)`
+        : 'Nenhum'
+    },
+    {
+      label: 'Inconsistências nos agrupamentos',
+      ok: inconsistencias.length === 0,
+      detail: inconsistencias.length === 0
+        ? 'Nenhuma inconsistência detectada'
+        : `${inconsistencias.length} elemento(s) com subitens não identificados`
+    },
+    {
+      label: 'Integridade Empenhado/Liquidado/Pago',
+      ok: dataRows.every(r => r.liq <= r.emp + 0.01 || r.emp === 0),
+      detail: 'Verificação de coerência entre colunas'
+    },
+  ];
+
+  document.getElementById('validations-list').innerHTML = items.map(v => {
+    const cls = v.info ? 'info' : (v.ok ? 'pass' : 'fail');
+    const icon = v.info ? 'ℹ️' : (v.ok ? '✅' : '❌');
+    return `
+      <div class="val-item ${cls}">
+        <span class="val-icon">${icon}</span>
+        <div class="val-text">
+          <strong>${v.label}</strong>
+          <span>${v.detail}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────
+// RENDERIZAR TABELA PROCESSADA
+// ─────────────────────────────────────────────
+function renderProcessedTable(dataRows) {
+  const tbody = document.getElementById('processed-tbody');
+  const subs  = dataRows.filter(r => r.type === 'subitem');
+
+  tbody.innerHTML = subs.map(r => {
+    const natureza = r.subNum === '-9'
+      ? '-9'
+      : '3390' + pad2(r.elemNum) + pad2(r.subNum);
+    const is9 = r.subNum === '-9';
+    return `
+      <tr class="${is9 ? 'row-only9' : ''}">
+        <td><span class="badge-elem">${r.elemNum}</span></td>
+        <td>${r.elemDesc}</td>
+        <td>${r.subNum}</td>
+        <td>${r.subDesc}</td>
+        <td class="num"><span class="natureza-code">${natureza}</span></td>
+        <td class="num">${fmt(r.prov)}</td>
+        <td class="num">${fmt(r.emp)}</td>
+        <td class="num">${fmt(r.liq)}</td>
+        <td class="num">${fmt(r.pago)}</td>
+        <td style="font-size:.72rem;color:var(--muted)">${is9 ? '⚠️ Só -9' : ''}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────
+// RENDERIZAR TABELA RAW
+// ─────────────────────────────────────────────
+function renderRawTable(rows, headerRow, dataStart) {
+  if (!rows || rows.length === 0) return;
+  const displayRows = rows.slice(0, Math.min(rows.length, 200));
+  const maxCols = Math.max(...displayRows.map(r => r.length));
+
+  let thead = '<tr>';
+  for (let j = 0; j < maxCols; j++) thead += `<th>Col ${j+1}</th>`;
+  thead += '</tr>';
+  document.getElementById('raw-thead').innerHTML = thead;
+
+  document.getElementById('raw-tbody').innerHTML = displayRows.map((r, i) => {
+    let style = '';
+    if (i === headerRow)  style = 'style="background:#ddeeff;font-weight:700"';
+    if (i === dataStart)  style = 'style="background:#ddffd0;font-weight:700;outline:2px solid #1a8a5a"';
+    return `<tr ${style}>${r.map(c => `<td>${c ?? ''}</td>`).join('')}</tr>`;
+  }).join('');
+}
+
+// ─────────────────────────────────────────────
+// CONSTRUTOR PURO DE HTML DA TABELA SUAP
+//
+// Esta função gera a string HTML com todos os
+// estilos inline embutidos DIRETAMENTE na string
+// — sem passar pelo DOM.
+//
+// Tanto renderSuapTable() quanto buildSuapHTML()
+// (clipboard) chamam esta mesma função, garantindo
+// que o HTML copiado seja 100% idêntico ao exibido,
+// com border:1px solid #555555 preservado em cada célula.
+// ─────────────────────────────────────────────
+const B  = 'border:1px solid #d1d9e3;';   // borda padrão cinza suave
+const BD = 'border:1px solid #c8d0dc;';   // borda cabeçalho/total (ligeiramente mais escura)
+
+function buildSuapTableHTML(suapRows) {
+  const dataRows  = suapRows.filter(r => r.type === 'data');
+  const subtotals = suapRows.filter(r => r.type === 'subtotal_elem');
+  const totRow    = suapRows.find(r => r.type === 'total_geral') || {};
+
+  const elemMap = new Map();
+  dataRows.forEach(r => {
+    if (!elemMap.has(r.elemNum)) elemMap.set(r.elemNum, []);
+    elemMap.get(r.elemNum).push(r);
+  });
+  const subtotalMap = new Map();
+  subtotals.forEach(r => subtotalMap.set(r.elemNum, r));
+
+  const FONT = "font-family:'Inter','Segoe UI',system-ui,sans-serif;";
+
+  // ── Helpers de célula — retornam strings, nunca tocam o DOM ──
+  const TH  = (txt, extra='') =>
+    `<th style="${BD}${FONT}padding:9px 10px;text-align:center;background:#edf0f4;color:#3a4558;font-size:11px;font-weight:600;letter-spacing:.3px;" ${extra}>${txt}</th>`;
+  const THL = (txt, extra='') =>
+    `<th style="${BD}${FONT}padding:9px 10px;text-align:left;background:#edf0f4;color:#3a4558;font-size:11px;font-weight:600;letter-spacing:.3px;" ${extra}>${txt}</th>`;
+
+  const TD  = (txt, extra='') =>
+    `<td style="${B}${FONT}padding:7px 10px;vertical-align:middle;font-size:12px;font-weight:500;" ${extra}>${txt}</td>`;
+  const TDR = (txt, extra='') =>
+    `<td style="${B}${FONT}padding:7px 10px;text-align:right;white-space:nowrap;vertical-align:middle;font-size:12px;font-weight:500;" ${extra}>${txt}</td>`;
+  const TDC = (txt, extra='') =>
+    `<td style="${B}${FONT}padding:7px 10px;text-align:center;font-weight:600;vertical-align:middle;font-size:12px;color:#3a4558;" ${extra}>${txt}</td>`;
+  const TDE = (txt, rs) =>
+    `<td style="${B}${FONT}padding:7px 10px;text-align:center;font-weight:600;background:#f7f8fa;vertical-align:middle;font-size:12px;color:#2d3748;" rowspan="${rs}">${txt}</td>`;
+  const TDED= (txt, rs) =>
+    `<td style="${B}${FONT}padding:7px 10px;font-weight:500;background:#f7f8fa;vertical-align:middle;font-size:12px;color:#2d3748;" rowspan="${rs}">${txt}</td>`;
+  const TDST= (txt) =>
+    `<td style="${B}${FONT}padding:7px 10px;text-align:right;font-style:italic;font-size:11px;color:#5a6a7e;background:#edf0f4;font-weight:600;">${txt}</td>`;
+  const TDSN= (txt) =>
+    `<td style="${B}${FONT}padding:7px 10px;text-align:right;background:#edf0f4;font-weight:600;font-size:12px;">${txt}</td>`;
+  const TDTL= (txt, extra='') =>
+    `<td style="${BD}${FONT}padding:9px 10px;text-align:right;letter-spacing:.4px;background:#e0e5ed;color:#2d3748;font-weight:700;font-size:12px;" ${extra}>${txt}</td>`;
+  const TDTN= (txt) =>
+    `<td style="${BD}${FONT}padding:9px 10px;text-align:right;background:#e0e5ed;color:#2d3748;font-weight:700;font-size:12px;">${txt}</td>`;
+
+  let out = `<table style="width:100%;border-collapse:collapse;font-size:12px;font-family:'Inter','Segoe UI',system-ui,sans-serif;border:1px solid #c8d0dc;"><thead style="display:table-row-group;"><tr>`;
+  out += THL('ELEMENTO DESPESA', 'colspan="2"');
+  out += THL('NATUREZA DESPESA DETALHADA', 'colspan="2"');
+  out += TH('15<br>PROVISÃO<br>RECEBIDA');
+  out += TH('23<br>DESPESAS<br>EMPENHADAS');
+  out += TH('25<br>DESPESAS<br>LIQUIDADAS');
+  out += TH('28<br>DESPESAS<br>PAGAS');
+  out += `</tr></thead><tbody>`;
+
+  elemMap.forEach((rows, elemNum) => {
+    const span = rows.length + 1;
+    rows.forEach((r, idx) => {
+      const nat = r.only9 ? '-9' : ('3390' + pad2(r.elemNum) + pad2(r.subNum));
+      out += '<tr>';
+      if (idx === 0) {
+        out += TDE(r.elemNum, span);
+        out += TDED(r.elemDesc, span);
+      }
+      out += TDC(nat);
+      out += TD(r.subDesc);
+      out += TDR(fmt(r.prov));
+      out += TDR(r.emp  ? fmt(r.emp)  : '-');
+      out += TDR(r.liq  ? fmt(r.liq)  : '-');
+      out += TDR(r.pago ? fmt(r.pago) : '-');
+      out += '</tr>';
+    });
+    const st = subtotalMap.get(elemNum) || {};
+    out += '<tr>';
+    out += TDST('Total') + TDST('');   // ocupa 2 colunas (nat + subdesc)
+    out += TDSN(fmtMoney(st.prov || 0));
+    out += TDSN(fmtMoney(st.emp  || 0));
+    out += TDSN(fmtMoney(st.liq  || 0));
+    out += TDSN(fmtMoney(st.pago || 0));
+    out += '</tr>';
+  });
+
+  out += '<tr>';
+  out += TDTL('TOTAL GERAL', 'colspan="4"');
+  out += TDTN(fmtMoney(totRow.prov));
+  out += TDTN(fmtMoney(totRow.emp));
+  out += TDTN(fmtMoney(totRow.liq));
+  out += TDTN(fmtMoney(totRow.pago));
+  out += '</tr></tbody></table>';
+
+  return out;
+}
+
+function renderSuapTable(suapRows, mesRef) {
+  if (mesRef) {
+    document.getElementById('suap-title').textContent =
+      'EXECUÇÃO DAS DESPESAS ORÇAMENTÁRIAS' + ' — ' + mesRef.toUpperCase();
+  }
+  // Injeta a string pura no DOM — sem nenhuma leitura de volta
+  document.getElementById('suap-table-container').innerHTML =
+    buildSuapTableHTML(suapRows);
+}
+
+// ─────────────────────────────────────────────
+// COPIAR TABELA SUAP
+// ─────────────────────────────────────────────
+document.getElementById('btn-copy').addEventListener('click', () => {
+  const container = document.getElementById('suap-table-container');
+  if (!container.innerHTML) return;
+
+  // Copiar como HTML (para colar no SUAP preservando a tabela)
+  const blob = new Blob([buildSuapHTML()], { type: 'text/html' });
+  const blobText = new Blob([buildSuapText()], { type: 'text/plain' });
+
+  if (navigator.clipboard && navigator.clipboard.write) {
+    navigator.clipboard.write([
+      new ClipboardItem({ 'text/html': blob, 'text/plain': blobText })
+    ]).then(() => toast('✅ Tabela copiada! Cole diretamente no SUAP.'))
+      .catch(() => fallbackCopy());
+  } else {
+    fallbackCopy();
+  }
+});
+
+function fallbackCopy() {
+  const el = document.createElement('textarea');
+  el.value = buildSuapText();
+  document.body.appendChild(el);
+  el.select();
+  document.execCommand('copy');
+  document.body.removeChild(el);
+  toast('✅ Conteúdo copiado (texto simples).');
+}
+
+function buildSuapHTML() {
+  const title = document.getElementById('suap-title').textContent;
+  // Usa a tabela já renderizada com todos os estilos inline — garante que bordas
+  // e cores persistam ao colar no Word, Excel ou SUAP.
+  const tableHTML = document.getElementById('suap-table-container').innerHTML;
+  return `<h3 style="font-family:Arial,sans-serif;text-align:center;text-transform:uppercase;margin-bottom:14px;">${title}</h3>${tableHTML}`;
+}
+
+function buildSuapText() {
+  const rows = state.suapRows;
+  if (!rows) return '';
+  const cols = ['ELEMENTO','DESCRIÇÃO ELEMENTO','NATUREZA','DESCRIÇÃO','PROVISÃO RECEBIDA','EMPENHADO','LIQUIDADO','PAGO'];
+  let txt = cols.join('\t') + '\n';
+  const subtotalMap = new Map();
+  rows.filter(r=>r.type==='subtotal_elem').forEach(r => subtotalMap.set(r.elemNum, r));
+  let lastElem = null;
+  rows.forEach(r => {
+    if (r.type === 'data') {
+      const natDisplay = r.only9 ? '-9' : ('3390' + pad2(r.elemNum) + pad2(r.subNum));
+      if (lastElem && lastElem !== r.elemNum) {
+        const st = subtotalMap.get(lastElem) || {};
+        txt += ['','','','Total',fmtMoney(st.prov||0),fmtMoney(st.emp||0),fmtMoney(st.liq||0),fmtMoney(st.pago||0)].join('\t') + '\n';
+      }
+      txt += [r.elemNum, r.elemDesc, natDisplay, r.subDesc,
+              fmtMoney(r.prov), fmtMoney(r.emp), fmtMoney(r.liq), fmtMoney(r.pago)].join('\t') + '\n';
+      lastElem = r.elemNum;
+    } else if (r.type === 'total_geral') {
+      if (lastElem) {
+        const st = subtotalMap.get(lastElem) || {};
+        txt += ['','','','Total',fmtMoney(st.prov||0),fmtMoney(st.emp||0),fmtMoney(st.liq||0),fmtMoney(st.pago||0)].join('\t') + '\n';
+      }
+      txt += ['','','','TOTAL GERAL',fmtMoney(r.prov),fmtMoney(r.emp),fmtMoney(r.liq),fmtMoney(r.pago)].join('\t') + '\n';
+    }
+  });
+  return txt;
+}
+
+// ─────────────────────────────────────────────
+// EXPORTAR HTML
+// ─────────────────────────────────────────────
+document.getElementById('btn-html').addEventListener('click', () => {
+  const title = document.getElementById('suap-title').textContent;
+  const content = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+<title>${title}</title>
+<style>
+body{font-family:'Segoe UI',sans-serif;padding:24px;color:#1a2535}
+h2{text-align:center;text-transform:uppercase;margin-bottom:20px;font-size:1rem}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead th{background:#163454;color:#fff;padding:10px;text-align:center;font-size:.73rem}
+thead th.left{text-align:left}
+tbody td{padding:8px 10px;border:1px solid #ccc;vertical-align:middle}
+tbody td.right{text-align:right;font-family:monospace}
+tbody td.center{text-align:center;font-family:monospace;font-weight:700}
+tr.tg{background:#163454;color:#fff;font-weight:700}
+</style></head><body>
+<h2>${title}</h2>
+<table>
+<thead><tr>
+<th class="left" colspan="2">ELEMENTO DESPESA</th>
+<th class="left" colspan="2">NATUREZA DESPESA DETALHADA</th>
+<th>PROVISÃO RECEBIDA</th><th>DESPESAS EMPENHADAS</th>
+<th>DESPESAS LIQUIDADAS</th><th>DESPESAS PAGAS</th>
+</tr></thead><tbody>
+${buildSuapHTMLRows()}
+</tbody></table></body></html>`;
+
+  download(content, 'relatorio_suap_' + (state.mesReferencia || 'export') + '.html', 'text/html');
+  toast('✅ HTML exportado.');
+});
+
+function buildSuapHTMLRows() {
+  const rows = state.suapRows;
+  if (!rows) return '';
+  let html = '';
+  const elemMap = new Map();
+  rows.filter(r=>r.type==='data').forEach(r => {
+    if (!elemMap.has(r.elemNum)) elemMap.set(r.elemNum, []);
+    elemMap.get(r.elemNum).push(r);
+  });
+  const subtotalMap = new Map();
+  rows.filter(r=>r.type==='subtotal_elem').forEach(r => subtotalMap.set(r.elemNum, r));
+
+  elemMap.forEach((rws, en) => {
+    const span = rws.length + 1;
+    rws.forEach((r, idx) => {
+      const natDisplay = r.only9 ? '-9' : ('3390' + pad2(r.elemNum) + pad2(r.subNum));
+      html += '<tr>';
+      if (idx === 0) {
+        html += `<td rowspan="${span}" style="text-align:center;font-weight:700">${r.elemNum}</td>`;
+        html += `<td rowspan="${span}" style="font-weight:600">${r.elemDesc}</td>`;
+      }
+      html += `<td class="center">${natDisplay}</td><td>${r.subDesc}</td>`;
+      html += `<td class="right">${fmt(r.prov)}</td><td class="right">${r.emp ? fmt(r.emp) : '-'}</td>`;
+      html += `<td class="right">${r.liq ? fmt(r.liq) : '-'}</td><td class="right">${r.pago ? fmt(r.pago) : '-'}</td>`;
+      html += '</tr>';
+    });
+    // Subtotal do elemento
+    const st = subtotalMap.get(en) || {};
+    html += `<tr style="background:#dde6f0;font-weight:700">`;
+    html += `<td colspan="2" style="text-align:right;padding-right:12px;font-style:italic;font-size:.78rem">Total</td>`;
+    html += `<td class="right">${fmtMoney(st.prov||0)}</td><td class="right">${fmtMoney(st.emp||0)}</td>`;
+    html += `<td class="right">${fmtMoney(st.liq||0)}</td><td class="right">${fmtMoney(st.pago||0)}</td>`;
+    html += '</tr>';
+  });
+  const tg = rows.find(r=>r.type==='total_geral')||{};
+  html += `<tr class="tg"><td colspan="4" style="text-align:right;padding-right:16px">TOTAL GERAL</td>
+    <td class="right">${fmtMoney(tg.prov)}</td><td class="right">${fmtMoney(tg.emp)}</td>
+    <td class="right">${fmtMoney(tg.liq)}</td><td class="right">${fmtMoney(tg.pago)}</td></tr>`;
+  return html;
+}
+
+// ─────────────────────────────────────────────
+// EXPORTAR PDF — captura TODA a página gerada:
+//   • Painel de KPIs (dashboard)
+//   • Validações automáticas
+//   • Tabela SUAP completa (com bordas inline)
+// ─────────────────────────────────────────────
+document.getElementById('btn-pdf').addEventListener('click', () => {
+  if (!state.suapRows) return;
+  generatePDF();
+});
+
+function generatePDF() {
+  const title = document.getElementById('suap-title').textContent;
+
+  // ── 1. Coletar KPIs do dashboard ──
+  const kpiNodes = document.querySelectorAll('#dashboard .kpi');
+  let kpiHTML = '';
+  kpiNodes.forEach(k => {
+    const label = k.querySelector('.kpi-label')?.textContent || '';
+    const value = k.querySelector('.kpi-value')?.textContent || '';
+    const isMoney = k.querySelector('.kpi-value')?.classList.contains('money');
+    kpiHTML += `
+      <div style="background:#f8fafc;border:1px solid #c8d4e0;border-radius:6px;padding:10px 14px;min-width:140px;flex:1;">
+        <div style="font-size:7pt;text-transform:uppercase;letter-spacing:.6px;color:#5a6a7e;margin-bottom:4px;">${label}</div>
+        <div style="font-size:${isMoney ? '8.5pt' : '13pt'};font-weight:700;color:#0d2137;font-family:${isMoney ? 'monospace' : 'inherit'};">${value}</div>
+      </div>`;
+  });
+
+  // ── 2. Coletar validações ──
+  const valNodes = document.querySelectorAll('#validations-list .val-item');
+  let valHTML = '';
+  valNodes.forEach(v => {
+    const icon   = v.querySelector('.val-icon')?.textContent || '';
+    const strong = v.querySelector('.val-text strong')?.textContent || '';
+    const span   = v.querySelector('.val-text span')?.textContent || '';
+    const bg     = v.classList.contains('pass') ? '#f0faf5'
+                 : v.classList.contains('fail') ? '#fff0f0'
+                 : '#fffbf0';
+    const border = v.classList.contains('pass') ? '#1a8a5a'
+                 : v.classList.contains('fail') ? '#c0222a'
+                 : '#c8a227';
+    valHTML += `
+      <div style="background:${bg};border:1px solid ${border};border-radius:5px;padding:7px 10px;display:flex;gap:7px;align-items:flex-start;">
+        <span style="font-size:9pt;flex-shrink:0;">${icon}</span>
+        <div>
+          <div style="font-weight:600;font-size:7.5pt;margin-bottom:2px;">${strong}</div>
+          <div style="font-size:6.5pt;color:#5a6a7e;">${span}</div>
+        </div>
+      </div>`;
+  });
+
+  // ── 3. Tabela SUAP — usar HTML já renderizado com estilos inline ──
+  const suapTableHTML = document.getElementById('suap-table-container').innerHTML;
+
+  // ── 4. Montar documento PDF completo ──
+  const pdfHTML = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>${title}</title>
+<style>
+  @page { size: A4 landscape; margin: 10mm 10mm 12mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 8pt;
+    color: #1a2535;
+    background: #fff;
+  }
+
+  /* ── Cabeçalho do documento ── */
+  .doc-header {
+    border-bottom: 2px solid #0d2137;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .doc-title {
+    font-size: 10pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    color: #0d2137;
+  }
+  .doc-meta {
+    font-size: 6.5pt;
+    color: #888;
+    text-align: right;
+  }
+
+  /* ── Seção ── */
+  .section {
+    margin-bottom: 10px;
+  }
+  .section-title {
+    font-size: 6.5pt;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    color: #5a6a7e;
+    font-weight: 700;
+    margin-bottom: 5px;
+    padding-bottom: 3px;
+    border-bottom: 1px solid #d0d9e4;
+  }
+
+  /* ── KPI grid ── */
+  .kpi-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* ── Validações ── */
+  .val-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+  }
+
+  /* ── Tabela SUAP ── */
+  /* Os estilos inline já estão em cada célula; apenas garantimos
+     que border-collapse seja herdado */
+  #pdf-suap-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 7pt;
+  }
+  #pdf-suap-table thead th {
+    background: #edf0f4 !important;
+    color: #3a4558 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #pdf-suap-table tbody tr td[style*="background:#f7f8fa"] {
+    background: #f7f8fa !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #pdf-suap-table tbody tr td[style*="background:#edf0f4"] {
+    background: #edf0f4 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #pdf-suap-table tbody tr td[style*="background:#e0e5ed"] {
+    background: #e0e5ed !important;
+    color: #2d3748 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* Impede que o cabeçalho se repita em cada página */
+    thead { display: table-row-group; }
+    .section { page-break-inside: avoid; }
+    #pdf-suap-table { page-break-before: avoid; }
+    /* Permite que a tabela quebre entre linhas normalmente */
+    #pdf-suap-table table { page-break-inside: auto; }
+    #pdf-suap-table tr    { page-break-inside: avoid; page-break-after: auto; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Cabeçalho -->
+<div class="doc-header">
+  <div class="doc-title">${title}</div>
+  <div class="doc-meta">Gerado em: ${new Date().toLocaleString('pt-BR')}</div>
+</div>
+
+<!-- Painel KPIs -->
+<div class="section">
+  <div class="section-title">📊 Painel de Auditoria</div>
+  <div class="kpi-grid">${kpiHTML}</div>
+</div>
+
+<!-- Validações -->
+<div class="section">
+  <div class="section-title">🔍 Validações Automáticas</div>
+  <div class="val-grid">${valHTML}</div>
+</div>
+
+<!-- Tabela SUAP -->
+<div class="section" id="pdf-suap-table">
+  <div class="section-title">📋 Execução das Despesas Orçamentárias</div>
+  ${suapTableHTML}
+</div>
+
+</body>
+</html>`;
+
+  const printWin = window.open('', '_blank', 'width=1200,height=900');
+  if (!printWin) {
+    showAlert('Pop-up bloqueado pelo navegador. Permita pop-ups para este site e tente novamente.', 'warn');
+    return;
+  }
+  printWin.document.open();
+  printWin.document.write(pdfHTML);
+  printWin.document.close();
+  // Aguardar renderização completa antes de chamar print
+  printWin.addEventListener('load', () => {
+    setTimeout(() => { printWin.focus(); printWin.print(); }, 400);
+  });
+  toast('🖨️ Janela de impressão aberta — selecione "Salvar como PDF".');
+}
+
+// ─────────────────────────────────────────────
+// DOWNLOAD HELPER
+// ─────────────────────────────────────────────
+function download(content, filename, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
